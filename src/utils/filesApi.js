@@ -1,5 +1,5 @@
 import axios from 'axios';
-const BASE_URL = 'http://localhost:5001'; // Replace with your API URL
+const BASE_URL = 'http://http://138.68.71.102:5001'; // Replace with your API URL
 
 export const uploadFiles = async (files, tags = [], token) => {
   const formData = new FormData();

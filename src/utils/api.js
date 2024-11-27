@@ -3,7 +3,7 @@
 import axios from 'axios';
 
 // Base URL for your API (adjust the URL to your backend)
-const BASE_URL = 'http://localhost:5001'; // Replace with your API URL
+const BASE_URL = 'http://http://138.68.71.102:5001'; // Replace with your API URL
 
 // Function to handle user registration
 export const registerUser = async (formData) => {

@@ -16,7 +16,7 @@ const PublicFileViewer = () => {
 
     const fetchFileUrl = async () => {
       try {
-        const response = await fetch(`http://localhost:5001/view/${sharedId}`);
+        const response = await fetch(`http://138.68.71.102:5001/view/${sharedId}`);
         if (!response.ok) {
           throw new Error('Failed to fetch file URL');
         }
