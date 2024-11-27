@@ -1,161 +1,256 @@
-import React, { useState, useRef } from 'react';
-import { Upload, X, FileText, File } from 'lucide-react';
-import { Alert } from '../components/ui/Alert';
-import { AlertDescription } from '../components/ui/Alert';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { Upload } from 'lucide-react';
+import { uploadFiles, fetchUserFiles, updateFileTags, deleteFile , generateShareableLink} from '../utils/filesApi'; // Mock or implement API
+import { AuthContext } from '../contexts/AuthContext';
+
 const FileManagementPage = () => {
-  const [files, setFiles] = useState([]);
-  const [error, setError] = useState('');
-  const [isDragActive, setIsDragActive] = useState(false);
-  const fileInputRef = useRef(null);
+    const { user } = useContext(AuthContext);
+    const [files, setFiles] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const fileInputRef = useRef(null);
 
-  const validateFile = (file) => {
-    const validTypes = [
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'image/gif',
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ];
-    
-    if (!validTypes.includes(file.type)) {
-      throw new Error('File type not supported');
-    }
-    
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
-      throw new Error('File size exceeds 5MB limit');
-    }
-  };
-
-  const handleFiles = (fileList) => {
-    setError('');
-    const newFiles = Array.from(fileList).map(file => {
-      try {
-        validateFile(file);
-        return {
-          file,
-          preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-          type: file.type
+    useEffect(() => {
+        const fetchFiles = async () => {
+            if (user?.token) {
+                setLoading(true);
+                setError('');
+                try {
+                    const data = await fetchUserFiles(user.token);
+                    setFiles(data);
+                } catch (err) {
+                    setError('Failed to fetch files. Please try again later.');
+                } finally {
+                    setLoading(false);
+                }
+            }
         };
-      } catch (err) {
-        setError(err.message);
-        return null;
-      }
-    }).filter(Boolean);
+        fetchFiles();
+    }, [user]);
 
-    setFiles(prev => [...prev, ...newFiles]);
-  };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragActive(false);
-    handleFiles(e.dataTransfer.files);
-  };
+    const validateFile = (file) => {
+        const validTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'application/pdf',
+            'video/mp4'
+        ];
+        const maxSize = 10 * 1024 * 1024; // 5MB
 
-  const handleChange = (e) => {
-    handleFiles(e.target.files);
-  };
+        if (!validTypes.includes(file.type)) {
+            throw new Error('File type not supported');
+        }
+        if (file.size > maxSize) {
+            throw new Error('File size exceeds 5MB limit');
+        }
+    };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragActive(true);
-  };
 
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragActive(false);
-  };
+    const handleFiles = async (fileList) => {
+        setError('');
+        if (!user?.token) {
+            setError('You must be logged in to upload files.');
+            return;
+        }
 
-  const removeFile = (index) => {
-    setFiles(prev => {
-      const newFiles = [...prev];
-      if (newFiles[index].preview) {
-        URL.revokeObjectURL(newFiles[index].preview);
-      }
-      newFiles.splice(index, 1);
-      return newFiles;
-    });
-  };
+        try {
+            const validFiles = Array.from(fileList).map((file) => {
+                validateFile(file);
+                return file;
+            });
 
-  const getFileIcon = (type) => {
-    if (type.startsWith('image/')) return <File className="h-8 w-8 text-blue-500" />;
-    if (type.includes('pdf')) return <FileText className="h-8 w-8 text-red-500" />;
-    return <File className="h-8 w-8 text-gray-500" />;
-  };
+            setLoading(true);
+            await uploadFiles(validFiles, [], user.token);
+            alert('Files uploaded successfully');
+            const updatedFiles = await fetchUserFiles(user.token); // Refresh the file list
+            setFiles(updatedFiles);
+        } catch (err) {
+            setError(err.message || 'Failed to upload files');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div
-        onClick={() => fileInputRef.current?.click()}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-          ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'}`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={handleChange}
-          multiple
-          accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx"
-        />
-        <Upload className="mx-auto h-12 w-12 text-gray-400" />
-        <p className="mt-2 text-sm text-gray-600">
-          {isDragActive ? 
-            'Drop the files here...' : 
-            'Drag & drop files here, or click to select files'
-          }
-        </p>
-        <p className="mt-1 text-xs text-gray-500">
-          Supported files: Images, PDF, DOC, DOCX (Max 5MB)
-        </p>
-      </div>
+    const handleAddTag = async (filename, newTag) => {
+        if (!newTag.trim()) return;
+        try {
+            setLoading(true);
+            const updatedFile = await updateFileTags(filename, [...new Set([...files.find(file => file.filename === filename).tags, newTag])], user.token);
+            setFiles((prevFiles) =>
+                prevFiles.map((file) =>
+                    file.filename === updatedFile.filename ? updatedFile : file
+                )
+            );
+        } catch (err) {
+            setError(err.message || 'Failed to add tag');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-      {error && (
-        <Alert variant="destructive" className="mt-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+    const handleRemoveTag = async (filename, tagToRemove) => {
+        try {
+            setLoading(true);
+            const updatedFile = await updateFileTags(filename, files.find(file => file.filename === filename).tags.filter(tag => tag !== tagToRemove), user.token);
+            setFiles((prevFiles) =>
+                prevFiles.map((file) =>
+                    file.filename === updatedFile.filename ? updatedFile : file
+                )
+            );
+        } catch (err) {
+            setError(err.message || 'Failed to remove tag');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-      {files.length > 0 && (
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-          {files.map((file, index) => (
-            <div key={index} className="relative group">
-              <div className="aspect-square rounded-lg border border-gray-200 overflow-hidden">
-                {file.preview ? (
-                  <img
-                    src={file.preview}
-                    alt={file.file.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center bg-gray-50">
-                    {getFileIcon(file.type)}
-                  </div>
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeFile(index);
-                  }}
-                  className="absolute top-1 right-1 p-1 rounded-full bg-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-4 w-4 text-gray-500" />
-                </button>
-              </div>
-              <p className="mt-1 text-xs text-gray-500 truncate">
-                {file.file.name}
-              </p>
+
+    const handleGenerateLink = async (fileId) => {
+        console.log("here in generate", fileId)
+        try {
+          const sharedLink = await generateShareableLink(fileId, user.token);
+          alert(`Shareable Link: ${sharedLink}`);
+        } catch (error) {
+          console.error('Failed to generate shareable link:', error);
+        }
+      };
+      
+    
+
+    const handleDelete = async (filename) => {
+        const confirmDelete = window.confirm('Are you sure you want to delete this file?');
+        if (!confirmDelete) return;
+
+        try {
+            setLoading(true);
+            await deleteFile(filename, user.token);
+            setFiles((prevFiles) => prevFiles.filter((file) => file.filename !== filename));
+        } catch (err) {
+            setError(err.message || 'Failed to delete the file');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleChange = (e) => {
+        handleFiles(e.target.files);
+    };
+
+    return (
+        <div className="max-w-2xl mx-auto p-6">
+            <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-blue-400"
+            >
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleChange}
+                    multiple
+                    accept=".jpg,.jpeg,.png,.gif,.pdf,.mp4"
+                />
+                <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                <p className="mt-2 text-sm text-gray-600">
+                    Click to select files for upload
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                    Supported files: Images, PDF, DOC (Max 5MB)
+                </p>
             </div>
-          ))}
+
+            {error && (
+                <div className="mt-4 text-red-500 text-sm">{error}</div>
+            )}
+
+            {loading ? (
+                <div className="mt-8 text-center text-sm text-gray-500">
+                    Loading files...
+                </div>
+            ) : (
+                <div className="mt-8">
+                    <h2 className="text-lg font-semibold">Your Files</h2>
+                    {files.length > 0 ? (
+                        <ul className="mt-4">
+                            {files.map((file) => (
+                                <li
+                                    key={file._id}
+                                    className="flex flex-col border-b py-2"
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <p className="text-sm font-medium">{file.filename}</p>
+                                            <div>
+                                                <p className="text-xs text-gray-500">Views: {file.views}</p>
+                                                {file.sharedLink && (
+                                                    <p className="text-xs text-blue-500">
+                                                        <a href={file.sharedLink} target="_blank" rel="noopener noreferrer">
+                                                            View File
+                                                        </a>
+                                                    </p>
+                                                )}
+                                                {!file.sharedLink && (
+                                                    <button
+                                                        className="text-blue-500 text-xs"
+                                                        onClick={() => handleGenerateLink(file._id)}
+                                                    >
+                                                        Generate Shareable Link
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <button
+                                            className="text-red-500 text-sm"
+                                            onClick={() => handleDelete(file.filename)}
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                    <div className="mt-2">
+                                        <h4 className="text-xs font-semibold">Tags:</h4>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                            {file.tags.map((tag) => (
+                                                <span
+                                                    key={tag}
+                                                    className="bg-gray-200 px-2 py-1 text-xs rounded"
+                                                >
+                                                    {tag}
+                                                    <button
+                                                        className="ml-1 text-red-500"
+                                                        onClick={() => handleRemoveTag(file.filename, tag)}
+                                                    >
+                                                        x
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="Add a tag"
+                                            className="mt-2 border rounded px-2 py-1 text-xs w-full"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    handleAddTag(file.filename, e.target.value);
+                                                    e.target.value = '';
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="mt-4 text-gray-500 text-sm">
+                            No files uploaded yet.
+                        </p>
+                    )}
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 };
 
 export default FileManagementPage;

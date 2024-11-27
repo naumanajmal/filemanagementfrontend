@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { AlertCircle, EyeOff, Eye, Loader2 } from 'lucide-react';
-import { Alert } from '../components/ui/Alert';
-import { AlertDescription } from '../components/ui/Alert';
-import { registerUser, loginUser } from '../utils/api'; // Import the API functions
+import { Alert, AlertDescription } from '../components/ui/Alert';
+import { AuthContext } from '../contexts/AuthContext';
+import { registerUser, loginUser } from '../utils/api';
 
 const AuthenticationPage = () => {
+  const { user, login } = useContext(AuthContext);
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -19,36 +20,39 @@ const AuthenticationPage = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    
-    // Basic validation
+
     if (!formData.email || !formData.password) {
       setError('Please fill in all fields');
       setLoading(false);
       return;
     }
-   
- 
-      try {
-        console.log("here")
+
+    try {
       if (isLogin) {
-          // Login API call
-         
         const data = await loginUser({
           email: formData.email,
           password: formData.password
         });
-        console.log('Login successful:', data);
-        // You can store the token or do something else here
+
+        if (data?.token) {
+          login(data.token); // Update the context with the token
+          window.location.href = '/file-management'; // Redirect
+        }
       } else {
-          // Registration API call
-          
+        if (formData.password !== formData.confirmPassword) {
+          setError('Passwords do not match');
+          setLoading(false);
+          return;
+        }
+
         const data = await registerUser({
           email: formData.email,
           password: formData.password,
           confirmPassword: formData.confirmPassword
         });
-        console.log('Registration successful:', data);
-        // Handle successful registration (maybe redirect or show success message)
+
+        alert('Registration successful! Please log in.');
+        setIsLogin(true);
       }
     } catch (err) {
       setError(err.error || 'Something went wrong. Please try again.');
@@ -66,13 +70,15 @@ const AuthenticationPage = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      {/* If already logged in, redirect to the main page */}
+      {user && (window.location.href = '/file-management')}
+
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             {isLogin ? 'Sign in to your account' : 'Create new account'}
           </h2>
         </div>
-        
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
             <Alert variant="destructive">
@@ -80,7 +86,7 @@ const AuthenticationPage = () => {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          
+
           <div className="rounded-md shadow-sm space-y-4">
             <div>
               <label htmlFor="email" className="sr-only">Email address</label>
