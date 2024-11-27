@@ -3,12 +3,13 @@
 import axios from 'axios';
 
 // Base URL for your API (adjust the URL to your backend)
-const BASE_URL = 'http://http://138.68.71.102:5001'; // Replace with your API URL
+const BASE_URL = 'http://46.101.155.18:5002/api'; // Replace with your API URL
+
 
 // Function to handle user registration
 export const registerUser = async (formData) => {
   try {
-    const response = await axios.post(`${BASE_URL}/register`, formData);
+    const response = await axios.post(`${BASE_URL}/auth/register`, formData);
     return response.data;
   } catch (error) {
     throw error.response?.data || { error: 'Registration failed' };
@@ -18,7 +19,7 @@ export const registerUser = async (formData) => {
 // Function to handle user login
 export const loginUser = async (formData) => {
   try {
-    const response = await axios.post(`${BASE_URL}/login`, formData);
+    const response = await axios.post(`${BASE_URL}/auth/login`, formData);
     return response.data;
   } catch (error) {
     throw error.response?.data || { error: 'Login failed' };

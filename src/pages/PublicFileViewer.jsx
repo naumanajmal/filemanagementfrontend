@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import { fetchSharedFile } from '../utils/filesApi'; // Import the API logic
 
 const PublicFileViewer = () => {
   const { sharedId } = useParams(); // Get the sharedId from the URL
@@ -14,15 +15,9 @@ const PublicFileViewer = () => {
 
     console.log("Fetching file URL for sharedId:", sharedId);
 
-    const fetchFileUrl = async () => {
+    const fetchFile = async () => {
       try {
-        const response = await fetch(`http://138.68.71.102:5001/view/${sharedId}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch file URL');
-        }
-        const data = await response.json();
-        const url = data.url;
-
+        const url = await fetchSharedFile(sharedId);
         const contentType = url.includes('.pdf')
           ? 'application/pdf'
           : url.includes('.png') || url.includes('.jpg') || url.includes('.jpeg')
@@ -33,11 +28,11 @@ const PublicFileViewer = () => {
         setFileUrl(url);
         setFileType(contentType);
       } catch (err) {
-        setError('File not found or inaccessible.');
+        setError(err.message);
       }
     };
 
-    fetchFileUrl();
+    fetchFile();
   }, [sharedId]);
 
   if (error) return <div className="text-red-500">{error}</div>;

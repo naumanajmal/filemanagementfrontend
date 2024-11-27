@@ -1,12 +1,12 @@
 import axios from 'axios';
-const BASE_URL = 'http://http://138.68.71.102:5001'; // Replace with your API URL
+const BASE_URL = 'http://46.101.155.18:5002/api'; // Replace with your API URL
 
 export const uploadFiles = async (files, tags = [], token) => {
   const formData = new FormData();
   files.forEach((file) => formData.append('files', file));
   formData.append('tags', tags.join(','));
   try {
-    const response = await axios.post(`${BASE_URL}/upload`, formData, {
+    const response = await axios.post(`${BASE_URL}/files/upload`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
         Authorization: `Bearer ${token}`, // Attach the token here
@@ -36,7 +36,7 @@ export const fetchUserFiles = async (token) => {
 
   export const deleteFile = async (filename, token) => {
     try {
-      const response = await axios.delete(`${BASE_URL}/file/${filename}`, {
+      const response = await axios.delete(`${BASE_URL}/files/file/${filename}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -53,7 +53,7 @@ export const fetchUserFiles = async (token) => {
   // utils/filesApi.js
 
 export const updateFileTags = async (filename, tags, token) => {
-    const apiUrl = `${BASE_URL}/files/update-tags`; // Replace with your API endpoint
+    const apiUrl = `${BASE_URL}/files/files/update-tags`; // Replace with your API endpoint
 
     try {
         const response = await fetch(apiUrl, {
@@ -81,7 +81,7 @@ export const updateFileTags = async (filename, tags, token) => {
 
 export const generateShareableLink = async (fileId, token) => {
     try {
-      const response = await axios.post(`${BASE_URL}/share/${fileId}`, {}, {
+      const response = await axios.post(`${BASE_URL}/files/share/${fileId}`, {}, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -95,12 +95,30 @@ export const generateShareableLink = async (fileId, token) => {
 
   export const fetchSharedFile = async (sharedId) => {
     try {
-      const response = await axios.get(`${BASE_URL}/view/${sharedId}`, {
-        responseType: 'blob', // Fetch as a file blob
-      });
-      return response.data;
+      const response = await fetch(`${BASE_URL}/files/view/${sharedId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch file URL');
+      }
+      const data = await response.json();
+      return data.url;
     } catch (error) {
-      console.error('Error fetching shared file:', error);
-      throw error.response ? error.response.data : error.message;
+      throw new Error('File not found or inaccessible.');
     }
   };
+
+
+  export const updateFileOrder = async (order, token) => {
+    const response = await fetch(`${BASE_URL}/files/update-order`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ order }),
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to save file order');
+    }
+    return response.json();
+};
