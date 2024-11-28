@@ -16,6 +16,8 @@ import {
 import { AuthContext } from '../contexts/AuthContext';
 
 const FileManagementPage = () => {
+    const [isDragging, setIsDragging] = useState(false);
+
     const { user } = useContext(AuthContext);
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -27,7 +29,26 @@ const FileManagementPage = () => {
             distance: 5, // Dragging will only start after the pointer moves 5px
           },
         })
-      );
+    );
+    
+
+    const handleDragOver = (event) => {
+        event.preventDefault();
+        setIsDragging(true);
+    };
+    const handleDragLeave = () => {
+        setIsDragging(false);
+    };
+    const handleDrop = async(event) => {
+        event.preventDefault();
+        setIsDragging(false);
+        const files = event.dataTransfer.files;
+        await handleFiles(files);
+        if (files) {
+            console.log("Dropped files:", files);
+            // Handle file upload
+        }
+    };
     useEffect(() => {
         const fetchFiles = async () => {
             if (user?.token) {
@@ -280,6 +301,9 @@ const FileManagementPage = () => {
     return (
         <div className="max-w-2xl mx-auto p-6">
             <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-blue-400"
             >

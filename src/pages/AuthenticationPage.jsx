@@ -1,13 +1,39 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { AlertCircle, EyeOff, Eye, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '../components/ui/Alert';
 import { AuthContext } from '../contexts/AuthContext';
 import { registerUser, loginUser } from '../utils/api';
+import { useNavigate } from 'react-router-dom';
+
+const PasswordInput = ({ id, name, placeholder, value, onChange }) => {
+  const [showPassword, setShowPassword] = useState(false);
+
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        name={name}
+        type={showPassword ? 'text' : 'password'}
+        required
+        className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+      />
+      <button
+        type="button"
+        onClick={() => setShowPassword(!showPassword)}
+        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+      >
+        {showPassword ? <EyeOff className="h-5 w-5 text-gray-400" /> : <Eye className="h-5 w-5 text-gray-400" />}
+      </button>
+    </div>
+  );
+};
 
 const AuthenticationPage = () => {
   const { user, login } = useContext(AuthContext);
   const [isLogin, setIsLogin] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
@@ -16,50 +42,13 @@ const AuthenticationPage = () => {
     confirmPassword: ''
   });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  const navigate = useNavigate();
 
-    if (!formData.email || !formData.password) {
-      setError('Please fill in all fields');
-      setLoading(false);
-      return;
+  useEffect(() => {
+    if (user) {
+      navigate('/file-management');
     }
-
-    try {
-      if (isLogin) {
-        const data = await loginUser({
-          email: formData.email,
-          password: formData.password
-        });
-
-        if (data?.token) {
-          login(data.token); // Update the context with the token
-          window.location.href = '/file-management'; // Redirect
-        }
-      } else {
-        if (formData.password !== formData.confirmPassword) {
-          setError('Passwords do not match');
-          setLoading(false);
-          return;
-        }
-
-        const data = await registerUser({
-          email: formData.email,
-          password: formData.password,
-          confirmPassword: formData.confirmPassword
-        });
-
-        alert('Registration successful! Please log in.');
-        setIsLogin(true);
-      }
-    } catch (err) {
-      setError(err.error || 'Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [user, navigate]);
 
   const handleInputChange = (e) => {
     setFormData({
@@ -68,11 +57,60 @@ const AuthenticationPage = () => {
     });
   };
 
+  const validateForm = () => {
+    if (!formData.email || !formData.password) {
+      return 'Please fill in all fields';
+    }
+    if (!isLogin && formData.password !== formData.confirmPassword) {
+      return 'Passwords do not match';
+    }
+    return null;
+  };
+
+  const authenticateUser = async (apiCall, payload, onSuccess) => {
+    try {
+      const data = await apiCall(payload);
+      onSuccess(data);
+    } catch (err) {
+      setError(err.error || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+  
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      setLoading(false);
+      return;
+    }
+  
+    if (isLogin) {
+      authenticateUser(loginUser, { email: formData.email, password: formData.password }, (data) => {
+        if (data?.token) {
+          login(data.token);
+          navigate('/file-management');
+        }
+      });
+    } else {
+      authenticateUser(registerUser, {
+        email: formData.email,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword // Include confirmPassword in the payload
+      }, () => {
+        alert('Registration successful! Please log in.');
+        setIsLogin(true);
+      });
+    }
+  };
+  
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      {/* If already logged in, redirect to the main page */}
-      {user && (window.location.href = '/file-management')}
-
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
@@ -102,45 +140,22 @@ const AuthenticationPage = () => {
               />
             </div>
 
-            <div className="relative">
-              <label htmlFor="password" className="sr-only">Password</label>
-              <input
-                id="password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                required
-                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Password"
-                value={formData.password}
-                onChange={handleInputChange}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-              >
-                {showPassword ? (
-                  <EyeOff className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <Eye className="h-5 w-5 text-gray-400" />
-                )}
-              </button>
-            </div>
+            <PasswordInput
+              id="password"
+              name="password"
+              placeholder="Password"
+              value={formData.password}
+              onChange={handleInputChange}
+            />
 
             {!isLogin && (
-              <div>
-                <label htmlFor="confirmPassword" className="sr-only">Confirm Password</label>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  required
-                  className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Confirm Password"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                />
-              </div>
+              <PasswordInput
+                id="confirmPassword"
+                name="confirmPassword"
+                placeholder="Confirm Password"
+                value={formData.confirmPassword}
+                onChange={handleInputChange}
+              />
             )}
           </div>
 
